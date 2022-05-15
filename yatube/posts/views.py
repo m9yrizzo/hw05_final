@@ -1,9 +1,9 @@
-from datetime import datetime
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.cache import cache_page
 from .models import Post, Group, Follow
 from .forms import PostForm, CommentForm
 
@@ -20,6 +20,7 @@ def paginatorer(request, query_set):
     return paginator.get_page(page_number)
 
 
+@cache_page(20)
 def index(request):
     posts = (
         Post.objects.select_related('author', 'group')
@@ -64,7 +65,13 @@ def profile_follow(request, username):
 def profile_unfollow(request, username):
     # Дизлайк, отписка
     following_author = get_object_or_404(User, username=username)
-    if (request.user != following_author):
+    if (
+        (request.user != following_author)
+        & Follow.objects.filter(
+            user=request.user,
+            author=following_author
+        ).exists()
+    ):
         Follow.objects.filter(
             user=request.user,
             author=following_author
@@ -78,14 +85,18 @@ def profile(request, username):
         following_author.posts.select_related('author', 'group')
     )
     page_obj = paginatorer(request, posts)
-    if (request.user.is_authenticated and request.user != following_author):
-        following = Follow.objects.filter(
-            user=request.user, author=following_author
+
+    following = (
+        request.user.is_authenticated and (
+            request.user != following_author
+        ) and Follow.objects.filter(
+            user=request.user,
+            author=following_author
         ).exists()
-        button_visible = True
-    else:
-        following = False
-        button_visible = False
+    )
+    button_visible = request.user.is_authenticated and (
+        request.user != following_author
+    )
     context = {
         'page_obj': page_obj,
         'author': following_author,
@@ -99,7 +110,7 @@ def post_detail(request, post_id):
     post = get_object_or_404(Post, id=post_id)
     comments = post.comments.all()
     can_edit = request.user == post.author
-    form = CommentForm(request.POST or None)
+    form = CommentForm()
     context = {
         'post': post,
         'can_edit': can_edit,
@@ -119,7 +130,6 @@ def post_create(request):
     if form.is_valid():
         post = form.save(commit=False)
         post.author = request.user
-        post.pub_date = datetime.now()
         post.save()
         return redirect('posts:profile', username=post.author.username)
     return render(
@@ -132,24 +142,21 @@ def post_create(request):
 def post_edit(request, post_id):
     is_edit = True
     post = get_object_or_404(Post, id=post_id)
-    if (request.user == post.author):
-        form = PostForm(
-            request.POST or None,
-            files=request.FILES or None,
-            instance=post
-        )
-        if form.is_valid():
-            post = form.save(commit=False)
-            post.author = request.user
-            post.pub_date = datetime.now()
-            post.save()
-            return redirect('posts:post_detail', post_id=post_id)
-        return render(
-            request, 'posts/post_create.html',
-            {'form': form, 'is_edit': is_edit, }
-        )
-    else:
+    if (request.user != post.author):
         return redirect('posts:post_detail', post_id=post_id)
+    form = PostForm(
+        request.POST or None,
+        files=request.FILES or None,
+        instance=post
+    )
+    if form.is_valid():
+        post = form.save(commit=False)
+        post.save()
+        return redirect('posts:post_detail', post_id=post_id)
+    return render(
+        request, 'posts/post_create.html',
+        {'form': form, 'is_edit': is_edit, }
+    )
 
 
 @login_required
@@ -161,4 +168,4 @@ def add_comment(request, post_id):
         comment.author = request.user
         comment.post = post
         comment.save()
-        return redirect("posts:post_detail", post_id=post_id)
+    return redirect("posts:post_detail", post_id=post_id)

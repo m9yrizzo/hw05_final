@@ -118,6 +118,7 @@ class TaskViewTests(TestCase):
             reverse('posts:profile', kwargs={'username': self.user.username})
         )
         for url in templates:
+            cache.clear()
             response = self.authorized_client.get(url)
             first_object = response.context['page_obj'][0]
             self.post_asserts(first_object)
@@ -149,6 +150,7 @@ class TaskViewTests(TestCase):
             reverse('posts:post_detail', kwargs={'post_id': post2.id})
         )
         for item in templates:
+            cache.clear()
             response = self.authorized_client.get(item)
             if (item == reverse(
                 'posts:post_detail',
@@ -210,6 +212,7 @@ class TaskViewTests(TestCase):
         for item2 in templates_pages_names:
             for item1 in templates_extentions:
                 with self.subTest(reverse_name=item2):
+                    cache.clear()
                     response = self.authorized_client.get(item2, item1[0])
                     self.assertEqual(
                         len(response.context['page_obj']), item1[1]
@@ -228,6 +231,7 @@ class TaskViewTests(TestCase):
         )
         # Проверка добавления нового поста на страницу
         for item in templates_pages_names:
+            cache.clear()
             response = self.authorized_client.get(item)
             # не могу заменить на post_asserts()
             self.assertEqual(

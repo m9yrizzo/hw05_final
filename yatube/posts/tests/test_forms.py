@@ -183,7 +183,8 @@ class TaskCreateFormTests(TestCase):
         ).count()
         posts = Post.objects.filter(author__following__user=self.user).count()
         # добавляем в БД пост от user
-        Post.objects.create(
+        following_post = Post.objects.create(
+            # если ставить здесь user2 изначальная логика теста будет провалена
             author=self.user,
             text='Тестовый пост для проверки подписок',
             group=self.group
@@ -198,26 +199,47 @@ class TaskCreateFormTests(TestCase):
         self.assertEqual(posts2_new, posts2 + 1)
         self.assertEqual(posts_new, posts)
 
+        response = self.authorized_client2.get(
+            reverse('posts:follow_index'),
+            follow=True
+        )
+        post_object = response.context['page_obj'][0]
+        self.assertEqual(post_object.author, following_post.author)
+        self.assertEqual(post_object.group.slug, following_post.group.slug)
+        self.assertEqual(post_object.pub_date, following_post.pub_date)
+        self.assertEqual(post_object.text, following_post.text)
+
     def test_follow(self):
-        self.authorized_client.get(
+        response = self.authorized_client.get(
             reverse(
                 'posts:profile_follow',
                 kwargs={'username': self.user2.username}
             )
         )
+        self.assertEqual(response.status_code, HTTPStatus.FOUND)
         self.assertTrue(
-            Follow.objects.filter(user=self.user, author=self.user2).exists()
+            Follow.objects.filter(
+                user=self.user,
+                author=self.user2
+            ).exists()
         )
 
     def test_unfollow(self):
-        self.authorized_client.get(
+        Follow.objects.create(user=self.user, author=self.user2)
+        follows_count = Follow.objects.count()
+        response = self.authorized_client.get(
             reverse(
                 'posts:profile_unfollow',
                 kwargs={'username': self.user2.username}
             )
         )
+        self.assertEqual(response.status_code, HTTPStatus.FOUND)
+        self.assertEqual(Follow.objects.count(), follows_count - 1)
         self.assertFalse(
-            Follow.objects.filter(user=self.user, author=self.user2).exists()
+            Follow.objects.filter(
+                user=self.user,
+                author=self.user2
+            ).exists()
         )
 
     def test_follow_url_redirect_anonymous_on_admin_login(self):
@@ -226,16 +248,20 @@ class TaskCreateFormTests(TestCase):
         """
         templates_url_names = (
             (
+                f'/profile/{self.user.username}/',
                 f'/auth/login/?next=/profile/{self.user.username}/follow/',
                 f'/profile/{self.user.username}/follow/'
             ),
             (
+                f'/profile/{self.user.username}/',
                 f'/auth/login/?next=/profile/{self.user.username}/unfollow/',
                 f'/profile/{self.user.username}/unfollow/'
             ),
         )
         for item in templates_url_names:
-            redirect, url = item
+            redirect_right, redirect, url = item
             with self.subTest(address=url):
                 response = self.guest_client.get(url, follow=True)
                 self.assertRedirects(response, redirect)
+                response2 = self.authorized_client.get(url, follow=True)
+                self.assertRedirects(response2, redirect_right)

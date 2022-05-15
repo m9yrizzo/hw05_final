@@ -1,12 +1,10 @@
 {% extends 'base.html' %}
-{% load cache %}
 {% block title %}
   <title>Последние обновления на сайте</title>
 {% endblock %}
 {% block content %}
   <h1>Последние обновления на сайте</h1>
   {% include 'includes/switcher.html' %}
-  {% cache 20 index_page %}
   {% for post in page_obj %}
     {% include 'includes/article.html' %}
     {% if post.group %}
@@ -16,5 +14,4 @@
     {% if not forloop.last %}<hr>{% endif %}
   {% endfor %}
   {% include 'includes/paginator.html' %}
-  {% endcache %} 
 {% endblock %} 
