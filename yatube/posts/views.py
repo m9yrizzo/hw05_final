@@ -20,7 +20,7 @@ def paginatorer(request, query_set):
     return paginator.get_page(page_number)
 
 
-@cache_page(20)
+@cache_page(20, key_prefix='index_page')
 def index(request):
     posts = (
         Post.objects.select_related('author', 'group')
@@ -65,17 +65,13 @@ def profile_follow(request, username):
 def profile_unfollow(request, username):
     # Дизлайк, отписка
     following_author = get_object_or_404(User, username=username)
-    if (
-        (request.user != following_author)
-        & Follow.objects.filter(
+    if (request.user != following_author):
+        post = Follow.objects.filter(
             user=request.user,
             author=following_author
-        ).exists()
-    ):
-        Follow.objects.filter(
-            user=request.user,
-            author=following_author
-        ).delete()
+        )
+        if post.exists():
+            post.delete()
     return redirect('posts:profile', username=username)
 
 
