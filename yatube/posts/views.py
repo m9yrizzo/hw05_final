@@ -66,12 +66,12 @@ def profile_unfollow(request, username):
     # Дизлайк, отписка
     following_author = get_object_or_404(User, username=username)
     if (request.user != following_author):
-        post = Follow.objects.filter(
+        follow = Follow.objects.filter(
             user=request.user,
             author=following_author
         )
-        if post.exists():
-            post.delete()
+        if follow.exists():
+            follow.delete()
     return redirect('posts:profile', username=username)
 
 

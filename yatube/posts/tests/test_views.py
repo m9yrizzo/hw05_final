@@ -233,7 +233,6 @@ class TaskViewTests(TestCase):
         for item in templates_pages_names:
             cache.clear()
             response = self.authorized_client.get(item)
-            # не могу заменить на post_asserts()
             self.assertEqual(
                 response.context['page_obj'][0].author.username,
                 post_ex.author.username
